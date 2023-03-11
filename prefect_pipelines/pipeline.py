@@ -74,27 +74,24 @@ def rename_columns(filepath: str, service: str) -> pd.DataFrame:
     """
     Renames columns in a data file.
     """
-    # if file already exists, skip
-    if os.path.exists(filepath+'.gz'):
-        return pd.read_parquet(filepath+'.gz')
+    try:
+        # read in data
+        df = pd.read_parquet(filepath)
+    except FileNotFoundError:
+        # read in compressed data
+        df = pd.read_parquet(filepath+'.gz')
+        
+    # formatter function
+    def column_formatter(name: str):
+        return name.replace('PUL','pickup_l').replace('DOL','dropoff_l').lower().replace('tpep_','').replace('lpep_','')
     
-    # read in data
-    df = pd.read_parquet(filepath)
-    
-    # yellow data columns
-    if service == 'yellow':
-        old = ['VendorID','tpep_pickup_datetime','tpep_dropoff_datetime','RatecodeID','PULocationID','DOLocationID']
-        new = ['vendorid','pickup_datetime','dropoff_datetime','ratecodeid','pickup_locationid','dropoff_locationid']
-    # green data columns
-    elif service == 'green':
-        old = ['VendorID','tpep_pickup_datetime','tpep_dropoff_datetime','RatecodeID','PULocationID','DOLocationID']
-        new = ['vendorid','pickup_datetime','dropoff_datetime','ratecodeid','pickup_locationid','dropoff_locationid']
-    # invalid taxi service
-    else:
-        raise ValueError(f'Invalid service: {service}, must be "yellow" or "green".')
+    # construct old and new column names
+    old = df.columns.to_list().copy()
+    new = [*map(column_formatter, old.copy())]
 
     # rename columns
     df.rename(columns=dict(zip(old,new)), inplace=True)
+
     return df
 
 @task(log_prints=True, retries=3, retry_delay_seconds=1)
