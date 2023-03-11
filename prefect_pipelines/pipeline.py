@@ -1,8 +1,4 @@
 import os
-# import io
-# import zipfile
-# import requests
-# import itertools
 import pandas as pd
 import sqlalchemy as sa
 from dotenv import load_dotenv
@@ -27,8 +23,9 @@ def construct_table_name(service: str, year: int, month: int) -> str:
     """
     Constructs a table name for a given service and year and month.
     """
-    return f'{service}_tripdata_{year:04d}_{month:02d}'
+    return f'{service}_tripdata_{year}'
 
+@task
 def setup_database():
     """
     Sets up the database.
@@ -48,13 +45,13 @@ def setup_database():
     
     # create stage schema if it doesn't exist
     con = engine.connect()
-    con.execute('CREATE SCHEMA IF NOT EXISTS staging')
+    con.execute('CREATE SCHEMA IF NOT EXISTS trips_data_all')
     
     # cleanup
     con.close()
     engine.dispose()
 
-@task(log_prints=True, retries=3, retry_delay_seconds=1)
+@task(log_prints=True)
 def fetch_dataset(url: str, filepath: str) -> pd.DataFrame:
     """
     Downloads a dataset from a URL and returns it as a Pandas DataFrame.
@@ -69,18 +66,19 @@ def fetch_dataset(url: str, filepath: str) -> pd.DataFrame:
     print('\n', '\nDownload complete.'.center(90), '\n')
     return
 
-@task(log_prints=True, retries=3, retry_delay_seconds=1)
+@task(log_prints=True)
 def rename_columns(filepath: str, service: str) -> pd.DataFrame:
     """
     Renames columns in a data file.
     """
-    try:
-        # read in data
+    if os.path.exists(filepath):
         df = pd.read_parquet(filepath)
-    except FileNotFoundError:
-        # read in compressed data
+    elif os.path.exists(filepath+'.gz'):
         df = pd.read_parquet(filepath+'.gz')
-        
+    else:
+        print('\n', f'File {filepath} does not exist.'.center(90), '\n')
+        return
+    
     # formatter function
     def column_formatter(name: str):
         return name.replace('PUL','pickup_l').replace('DOL','dropoff_l').lower().replace('tpep_','').replace('lpep_','')
@@ -94,7 +92,7 @@ def rename_columns(filepath: str, service: str) -> pd.DataFrame:
 
     return df
 
-@task(log_prints=True, retries=3, retry_delay_seconds=1)
+@task(log_prints=True)
 def replace_data_file(df: pd.DataFrame, filepath) -> pd.DataFrame:
     """
     Replaces a data file with a compressed parquet file.
@@ -108,8 +106,8 @@ def replace_data_file(df: pd.DataFrame, filepath) -> pd.DataFrame:
     df.to_parquet(filepath+'.gz', compression='gzip')
     return pd.read_parquet(filepath+'.gz')
 
-@task(log_prints=True, retries=3, retry_delay_seconds=5)
-def upload_to_postgres(df: pd.DataFrame, tablename: str, schema: str = 'staging'):
+@task(log_prints=True)
+def upload_to_postgres(df: pd.DataFrame, tablename: str, schema: str = 'trips_data_all') -> None:
     """
     Load data into PostgreSQL database.
     """
@@ -176,11 +174,11 @@ def etl_taxi_trips(year: int):
     ETL flow for the NYC Taxi Trip Data dataset.
     """
     setup_database()
-    # run flow
+    # iterate through the months of a year
     for month in range(1, 13):
-        # run flow
+        # run flow for yellow taxis
         etl_subflow((year, month, 'yellow'))
-        # run flow
+        # run flow for green taxis
         etl_subflow((year, month, 'green'))
 
 
