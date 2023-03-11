@@ -187,5 +187,7 @@ def etl_taxi_trips(year: int):
 
 if __name__ == '__main__':
     print()
-    etl_taxi_trips(2020)
+    etl_taxi_trips(2019)
+    # etl_taxi_trips(2020)
+    # etl_taxi_trips(2021)
     print()
