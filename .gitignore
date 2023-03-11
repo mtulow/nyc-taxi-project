@@ -130,3 +130,5 @@ dmypy.json
 
 # dbt
 profiles.yml
+
+data/
