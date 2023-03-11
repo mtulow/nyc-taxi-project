@@ -1,5 +1,4 @@
 import os
-import wget
 import pandas as pd
 import datetime as dt
 from dotenv import load_dotenv
@@ -53,11 +52,11 @@ with local_workflow:
     
     for service in ['yellow', 'green']:
         # construct url
-        url = f'https://d37ci6vzurychx.cloudfront.net/trip-data/{service}' + '_tripdata_{{ execution_date.strftime(\'%Y-%m\') }}.parquet'
+        url = f'https://d37ci6vzurychx.cloudfront.net/trip-data/{service}_tripdata_' + '{{ execution_date.strftime(\'%Y-%m\') }}.parquet'
         # construct filename
         filename = os.path.join('data', service, url.split('/')[-1])
         # construct tablename
-        tablename = f'{service}_tripdata'
+        tablename = f'{service}_taxi_' + '{{ execution_date.strftime(\'%Y_%m\') }}'
 
         # create data directory
         setup_local_ingestion = BashOperator(
