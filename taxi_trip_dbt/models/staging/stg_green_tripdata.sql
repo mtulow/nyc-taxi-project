@@ -3,22 +3,22 @@
 with tripdata as 
 (
   select *,
-    row_number() over(partition by vendorid, pickup_datetime) as rn
+    row_number() over(partition by vendorid, lpep_pickup_datetime) as rn
   from {{ source('raw','green_tripdata_2019') }}
   where vendorid is not null 
 )
 
 select
     -- identifiers
-    {{ dbt_utils.surrogate_key(['vendorid', 'pickup_datetime']) }} as tripid,
+    {{ dbt_utils.surrogate_key(['vendorid', 'lpep_pickup_datetime']) }} as tripid,
     vendorid::integer,
     ratecodeid::integer,
-    pickup_locationid::integer,
-    dropoff_locationid::integer,
+    pulocationid::integer as pickup_locationid,
+    dolocationid::integer as dropoff_locationid,
 
     -- timestamps
-    pickup_datetime::timestamp,
-    dropoff_datetime::timestamp,
+    lpep_pickup_datetime::timestamp as pickup_datetime,
+    lpep_dropoff_datetime::timestamp as dropoff_datetime,
 
     -- trip info
     store_and_fwd_flag,

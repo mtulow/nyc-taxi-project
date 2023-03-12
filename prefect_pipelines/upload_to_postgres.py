@@ -1,6 +1,8 @@
 import os
 import glob
+import time
 import pandas as pd
+import datetime as dt
 import sqlalchemy as sa
 import multiprocessing as mp
 from dotenv import load_dotenv
@@ -57,10 +59,16 @@ def upload_to_postgres(filepath: str)-> None:
     # load data to postgres
     print(f"Uploading {os.path.basename(filepath)} into PostgreSQL table {tablename}")
     if month == 1:
+        t0 = time.perf_counter()
         df.to_sql(tablename, con=engine, schema='trips_data_all', if_exists='replace', index=False, chunksize=100_000)
+        t1 = time.perf_counter()
     else:
+        t0 = time.perf_counter()
         df.to_sql(tablename, con=engine, schema='trips_data_all', if_exists='append', index=False, chunksize=100_000)
-    print('\n', f'Uploaded {os.path.basename(filepath)} to {tablename}', '\n')
+        t1 = time.perf_counter()
+    print(f'Uploaded {os.path.basename(filepath)} to {tablename}')
+    print('Total Time:', dt.timedelta(t1-t0).strftime('%H:%M:%S'))
+    print()
 
 
 def load_data(year: int)-> pd.DataFrame:
@@ -83,7 +91,7 @@ def load_data(year: int)-> pd.DataFrame:
     print()
     
     # 
-    pool = mp.Pool(processes=mp.cpu_count())
+    pool = mp.Pool(processes=2 or mp.cpu_count())
     pool.map(upload_to_postgres, data_files)
     pool.close()
 

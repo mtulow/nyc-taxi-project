@@ -1,4 +1,5 @@
 import os
+import psycopg2
 import pandas as pd
 import sqlalchemy as sa
 from dotenv import load_dotenv
@@ -26,7 +27,7 @@ def construct_table_name(service: str, year: int, month: int) -> str:
     return f'{service}_tripdata_{year}'
 
 @task
-def setup_database():
+def setup_database(schema: str = 'trips_data_all'):
     """
     Sets up the database.
     """
@@ -39,17 +40,15 @@ def setup_database():
     host = os.getenv('PG_HOST')
     port = os.getenv('PG_PORT')
     dbname = os.getenv('PG_DATABASE')
-    
+
     # connect to database
-    engine = sa.create_engine(f'postgresql://{username}:{password}@{host}:{port}/{dbname}')
-    
-    # create stage schema if it doesn't exist
-    con = engine.connect()
-    con.execute('CREATE SCHEMA IF NOT EXISTS trips_data_all')
-    
-    # cleanup
-    con.close()
-    engine.dispose()
+    with psycopg2.connect(user=username, password=password, host=host, port=port, dbname=dbname) as conn:
+        # create stage schema if it doesn't exist
+        c = conn.cursor()
+        c.execute('CREATE SCHEMA IF NOT EXISTS trips_data_all')
+
+        # cleanup
+        conn.commit()
 
 @task(log_prints=True)
 def fetch_dataset(url: str, filepath: str) -> pd.DataFrame:
@@ -67,39 +66,15 @@ def fetch_dataset(url: str, filepath: str) -> pd.DataFrame:
     return
 
 @task(log_prints=True)
-def rename_columns(filepath: str, service: str) -> pd.DataFrame:
-    """
-    Renames columns in a data file.
-    """
-    if os.path.exists(filepath):
-        df = pd.read_parquet(filepath)
-    elif os.path.exists(filepath+'.gz'):
-        df = pd.read_parquet(filepath+'.gz')
-    else:
-        print('\n', f'File {filepath} does not exist.'.center(90), '\n')
-        return
-    
-    # formatter function
-    def column_formatter(name: str):
-        return name.replace('PUL','pickup_l').replace('DOL','dropoff_l').lower().replace('tpep_','').replace('lpep_','')
-    
-    # construct old and new column names
-    old = df.columns.to_list().copy()
-    new = [*map(column_formatter, old.copy())]
-
-    # rename columns
-    df.rename(columns=dict(zip(old,new)), inplace=True)
-
-    return df
-
-@task(log_prints=True)
-def replace_data_file(df: pd.DataFrame, filepath) -> pd.DataFrame:
+def replace_data_file(filepath: str) -> pd.DataFrame:
     """
     Replaces a data file with a compressed parquet file.
     """
     # if file already exists, skip
     if os.path.exists(filepath+'.gz'):
         return pd.read_parquet(filepath+'.gz')
+    # else read from file
+    df = pd.read_parquet(filepath)
     # remove regular file
     os.remove(filepath)
     # compress data
@@ -130,7 +105,7 @@ def upload_to_postgres(df: pd.DataFrame, tablename: str, schema: str = 'trips_da
             return
         
         # load data into database
-        df.to_sql(tablename, engine, schema=schema, if_exists='fail', index=False, chunksize=100_000)
+        df.to_sql(tablename, engine, schema=schema, if_exists='append', index=False, chunksize=100_000)
 
         # cleanup
         engine.dispose()
@@ -160,10 +135,8 @@ def etl_subflow(args: tuple):
     # fetch dataset
     fetch_dataset(url, filepath)
 
-    # rename columns
-    df = rename_columns(filepath, service)
     # replace data file with compressed parquet file
-    df = replace_data_file(df, filepath)
+    df = replace_data_file(filepath)
 
     # upload to postgres
     upload_to_postgres(df, tablename)
