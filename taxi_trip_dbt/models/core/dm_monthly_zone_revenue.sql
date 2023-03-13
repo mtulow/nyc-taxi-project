@@ -1,4 +1,4 @@
-{{ config(materialized='table') }}
+{{ config(materialized='view') }}
 
 with trips_data as (
     select * from {{ ref('fact_trips') }}

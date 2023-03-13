@@ -3,18 +3,18 @@
 with tripdata as 
 (
   select *,
-    row_number() over(partition by vendorid, tpep_pickup_datetime) as rn
+    row_number() over(partition by "VendorID", tpep_pickup_datetime) as rn
   from {{ source('raw','yellow_tripdata_2019') }}
-  where vendorid is not null 
+  where "VendorID" is not null 
 )
 
 select
     -- identifiers
-    {{ dbt_utils.surrogate_key(['vendorid', 'tpep_pickup_datetime']) }} as tripid,
-    vendorid::integer,
-    ratecodeid::integer,
-    pulocationid::integer as pickup_locationid,
-    dolocationid::integer as dropoff_locationid,
+    {{ dbt_utils.surrogate_key(['"VendorID"', 'tpep_pickup_datetime']) }} as tripid,
+    "VendorID"::integer as vendorid,
+    "RatecodeID"::integer as ratecodeid,
+    "PULocationID"::integer as pickup_locationid,
+    "DOLocationID"::integer as dropoff_locationid,
 
     -- timestamps
     tpep_pickup_datetime::timestamp as pickup_datetime,
@@ -42,9 +42,9 @@ select
 from tripdata
 where rn = 1
 
--- dbt build --m <model.sql> --var 'is_test_run: false'
-{% if var('is_test_run', default=true) %}
+-- -- dbt build --m <model.sql> --var 'is_test_run: false'
+-- {% if var('is_test_run', default=true) %}
 
-  limit 100
+--   limit 100
 
-{% endif %}
+-- {% endif %}
