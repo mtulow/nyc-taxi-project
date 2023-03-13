@@ -129,6 +129,6 @@ def load_data(year: int)-> pd.DataFrame:
 
 if __name__ == '__main__':
     print()
-    load_data(2019)
+    load_data(2020)
     print()
     

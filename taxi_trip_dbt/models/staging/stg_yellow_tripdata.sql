@@ -1,11 +1,26 @@
 {{ config(materialized='view') }}
 
-with tripdata as 
+with tripdata_2019 as 
 (
   select *,
-    row_number() over(partition by "VendorID", tpep_pickup_datetime) as rn
+    row_number() over(partition by '"VendorID"', 'tpep_pickup_datetime') as rn
   from {{ source('raw','yellow_tripdata_2019') }}
-  where "VendorID" is not null 
+  where '"VendorID"' is not null 
+),
+
+tripdata_2020 as
+(
+  select *,
+    row_number() over(partition by '"VendorID"', 'tpep_pickup_datetime') as rn
+  from {{ source('raw','yellow_tripdata_2020') }}
+  where '"VendorID"' is not null 
+),
+
+tripdata as
+(
+  select * from tripdata_2019
+  union all
+  select * from tripdata_2020
 )
 
 select
